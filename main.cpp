@@ -1,4 +1,5 @@
 #include "cpl_conv.h" // for CPLMalloc()
+#include "cpl_string.h"
 #include "gdal_priv.h"
 #include <iostream>
 
@@ -15,6 +16,7 @@ int main()
         cout << "poDataset is null";
         return 0;
     }
+    //Чтение информации о TIFF в целом
     double adfGeoTransform[6];
     printf("Driver: %s/%s\n",
            poDataset->GetDriver()->GetDescription(),
@@ -29,7 +31,7 @@ int main()
         printf("Origin = (%.6f,%.6f)\n", adfGeoTransform[0], adfGeoTransform[3]);
         printf("Pixel Size = (%.6f,%.6f)\n", adfGeoTransform[1], adfGeoTransform[5]);
     }
-
+    //Информация о растровом канале
     GDALRasterBand *poBand;
     int nBlockXSize, nBlockYSize;
     int bGotMin, bGotMax;
@@ -51,5 +53,57 @@ int main()
     if (poBand->GetColorTable() != NULL)
         printf("Band has a color table with %d entries.\n",
                poBand->GetColorTable()->GetColorEntryCount());
+
+    //Read raster line
+    float *pafScanline;
+    int nXSize = poBand->GetXSize();
+    int nYSize = poBand->GetYSize();
+    cout << "X size=" << nXSize << " Y size=" << nYSize << endl;
+
+    pafScanline = (float *) CPLMalloc(sizeof(float) * nXSize);
+    auto scanLineReadResult
+        = poBand->RasterIO(GF_Read, 0, 0, nXSize, 1, pafScanline, nXSize, 1, GDT_Float32, 0, 0);
+    cout << scanLineReadResult << endl;
+
+    //Create TIFF check
+    const char *pszFormat = "GTiff";
+    GDALDriver *poDriver;
+    char **papszMetadata;
+    poDriver = GetGDALDriverManager()->GetDriverByName(pszFormat);
+    if (poDriver == NULL)
+        exit(1);
+    papszMetadata = poDriver->GetMetadata();
+    if (CSLFetchBoolean(papszMetadata, GDAL_DCAP_CREATE, FALSE))
+        printf("Driver %s supports Create() method.\n", pszFormat);
+    if (CSLFetchBoolean(papszMetadata, GDAL_DCAP_CREATECOPY, FALSE))
+        printf("Driver %s supports CreateCopy() method.\n", pszFormat);
+    ;
+
+    //Create TIFF
+    const char *pszDstFilename = "/mnt/disk2/routes/teat.tif";
+    GDALDataset *poDstDS;
+    char **papszOptions = NULL;
+    poDstDS = poDriver->Create(pszDstFilename, 512, 512, 1, GDT_Byte, papszOptions);
+
+    double nf_adfGeoTransform[6] = {444720, 30, 0, 3751320, 0, -30};
+    OGRSpatialReference oSRS;
+    char *pszSRS_WKT = NULL;
+
+    GDALRasterBand *nf_poBand;
+    GByte abyRaster[512 * 512];
+
+    poDstDS->SetGeoTransform(nf_adfGeoTransform);
+    oSRS.SetUTM(11, TRUE);
+    oSRS.SetWellKnownGeogCS("NAD27");
+    oSRS.exportToWkt(&pszSRS_WKT);
+    poDstDS->SetProjection(pszSRS_WKT);
+    CPLFree(pszSRS_WKT);
+
+    nf_poBand = poDstDS->GetRasterBand(1);
+    auto res = nf_poBand->RasterIO(GF_Write, 0, 0, 512, 512, pafScanline, 512, 512, GDT_Byte, 0, 0);
+    cout << res;
+    /* Once we're done, close properly the dataset */
+    GDALClose((GDALDatasetH) poDstDS);
+
     return 0;
 }
