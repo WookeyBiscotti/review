@@ -9,63 +9,65 @@ int main()
 {
     cout << "Start Pixel Remover!!!" << endl;
     const char *pszFilename = "/mnt/disk2/routes/0041_0102_22511_1_02624_06_10_1.tif";
-    GDALDataset *poDataset;
+    GDALDataset *src_poDataset;
     GDALAllRegister();
-    poDataset = (GDALDataset *) GDALOpen(pszFilename, GA_ReadOnly);
-    if (poDataset == NULL) {
-        cout << "poDataset is null";
+    src_poDataset = (GDALDataset *) GDALOpen(pszFilename, GA_ReadOnly);
+    if (src_poDataset == NULL) {
+        cout << "src_poDataset is null";
         return 0;
     }
     //Чтение информации о TIFF в целом
     double adfGeoTransform[6];
     printf("Driver: %s/%s\n",
-           poDataset->GetDriver()->GetDescription(),
-           poDataset->GetDriver()->GetMetadataItem(GDAL_DMD_LONGNAME));
+           src_poDataset->GetDriver()->GetDescription(),
+           src_poDataset->GetDriver()->GetMetadataItem(GDAL_DMD_LONGNAME));
     printf("Size is %dx%dx%d\n",
-           poDataset->GetRasterXSize(),
-           poDataset->GetRasterYSize(),
-           poDataset->GetRasterCount());
-    if (poDataset->GetProjectionRef() != NULL)
-        printf("Projection is `%s'\n", poDataset->GetProjectionRef());
-    if (poDataset->GetGeoTransform(adfGeoTransform) == CE_None) {
+           src_poDataset->GetRasterXSize(),
+           src_poDataset->GetRasterYSize(),
+           src_poDataset->GetRasterCount());
+    if (src_poDataset->GetProjectionRef() != NULL)
+        printf("Projection is `%s'\n", src_poDataset->GetProjectionRef());
+    if (src_poDataset->GetGeoTransform(adfGeoTransform) == CE_None) {
         printf("Origin = (%.6f,%.6f)\n", adfGeoTransform[0], adfGeoTransform[3]);
         printf("Pixel Size = (%.6f,%.6f)\n", adfGeoTransform[1], adfGeoTransform[5]);
     }
     //Информация о растровом канале
-    GDALRasterBand *poBand;
+    GDALRasterBand *src_poBand;
     int nBlockXSize, nBlockYSize;
     int bGotMin, bGotMax;
     double adfMinMax[2];
-    poBand = poDataset->GetRasterBand(1);
-    poBand->GetBlockSize(&nBlockXSize, &nBlockYSize);
+    src_poBand = src_poDataset->GetRasterBand(1);
+    src_poBand->GetBlockSize(&nBlockXSize, &nBlockYSize);
     printf("Block=%dx%d Type=%s, ColorInterp=%s\n",
            nBlockXSize,
            nBlockYSize,
-           GDALGetDataTypeName(poBand->GetRasterDataType()),
-           GDALGetColorInterpretationName(poBand->GetColorInterpretation()));
-    adfMinMax[0] = poBand->GetMinimum(&bGotMin);
-    adfMinMax[1] = poBand->GetMaximum(&bGotMax);
+           GDALGetDataTypeName(src_poBand->GetRasterDataType()),
+           GDALGetColorInterpretationName(src_poBand->GetColorInterpretation()));
+    adfMinMax[0] = src_poBand->GetMinimum(&bGotMin);
+    adfMinMax[1] = src_poBand->GetMaximum(&bGotMax);
     if (!(bGotMin && bGotMax))
-        GDALComputeRasterMinMax((GDALRasterBandH) poBand, TRUE, adfMinMax);
+        GDALComputeRasterMinMax((GDALRasterBandH) src_poBand, TRUE, adfMinMax);
     printf("Min=%.3fd, Max=%.3f\n", adfMinMax[0], adfMinMax[1]);
-    if (poBand->GetOverviewCount() > 0)
-        printf("Band has %d overviews.\n", poBand->GetOverviewCount());
-    if (poBand->GetColorTable() != NULL)
+    if (src_poBand->GetOverviewCount() > 0)
+        printf("Band has %d overviews.\n", src_poBand->GetOverviewCount());
+    if (src_poBand->GetColorTable() != NULL)
         printf("Band has a color table with %d entries.\n",
-               poBand->GetColorTable()->GetColorEntryCount());
+               src_poBand->GetColorTable()->GetColorEntryCount());
 
     //Read raster line
     float *pafScanline;
-    int nXSize = poBand->GetXSize();
-    int nYSize = poBand->GetYSize();
-    cout << "X size=" << nXSize << " Y size=" << nYSize << endl;
+    int src_xSize = src_poBand->GetXSize();
+    int src_ySize = src_poBand->GetYSize();
+    cout << "X size=" << src_xSize << " Y size=" << src_ySize << endl;
 
-    pafScanline = (float *) CPLMalloc(sizeof(float) * nXSize);
-    auto scanLineReadResult
-        = poBand->RasterIO(GF_Read, 0, 0, nXSize, 1, pafScanline, nXSize, 1, GDT_Float32, 0, 0);
-    cout << scanLineReadResult << endl;
+    pafScanline = (float *) CPLMalloc(sizeof(float) * src_xSize);
+    CPLErr scanLineReadResult;
+    //    scanLineReadResult = src_poBand->RasterIO(
+    //        GF_Read, 0, 0, src_xSize, 1, pafScanline, src_xSize, 1, GDT_Float32, 0, 0);
+    //    cout << scanLineReadResult << endl;
+    ////////////////////////////////////
 
-    //Create TIFF check
+    //Creation TIFF check
     const char *pszFormat = "GTiff";
     GDALDriver *poDriver;
     char **papszMetadata;
@@ -81,29 +83,42 @@ int main()
 
     //Create TIFF
     const char *pszDstFilename = "/mnt/disk2/routes/teat.tif";
-    GDALDataset *poDstDS;
+    GDALDataset *dst_poDataset;
     char **papszOptions = NULL;
-    poDstDS = poDriver->Create(pszDstFilename, 512, 512, 1, GDT_Byte, papszOptions);
+    dst_poDataset = poDriver
+                        ->Create(pszDstFilename, src_xSize, src_ySize, 1, GDT_UInt16, papszOptions);
 
     double nf_adfGeoTransform[6] = {444720, 30, 0, 3751320, 0, -30};
     OGRSpatialReference oSRS;
     char *pszSRS_WKT = NULL;
 
     GDALRasterBand *nf_poBand;
-    GByte abyRaster[512 * 512];
+    //    GByte abyRaster[512 * 512];
 
-    poDstDS->SetGeoTransform(nf_adfGeoTransform);
+    //GeoData
+    dst_poDataset->SetGeoTransform(nf_adfGeoTransform);
     oSRS.SetUTM(11, TRUE);
     oSRS.SetWellKnownGeogCS("NAD27");
     oSRS.exportToWkt(&pszSRS_WKT);
-    poDstDS->SetProjection(pszSRS_WKT);
+    dst_poDataset->SetProjection(pszSRS_WKT);
     CPLFree(pszSRS_WKT);
+    ///
 
-    nf_poBand = poDstDS->GetRasterBand(1);
-    auto res = nf_poBand->RasterIO(GF_Write, 0, 0, 512, 512, pafScanline, 512, 512, GDT_Byte, 0, 0);
-    cout << res;
-    /* Once we're done, close properly the dataset */
-    GDALClose((GDALDatasetH) poDstDS);
+    nf_poBand = dst_poDataset->GetRasterBand(1);
+    CPLErr writeRes;
+
+    for (int i = 0; i < src_ySize; i++) {
+        scanLineReadResult = src_poBand->RasterIO(
+            GF_Read, 0, i, src_xSize, 1, pafScanline, src_xSize, 1, GDT_UInt16, 0, 0);
+
+        //        cout << pafScanline;
+        writeRes = nf_poBand->RasterIO(
+            GF_Write, 0, i, src_xSize, 1, pafScanline, src_xSize, 1, GDT_UInt16, 0, 0);
+    }
+
+    CPLFree(pafScanline);
+    cout << writeRes;
+    GDALClose((GDALDatasetH) dst_poDataset);
 
     return 0;
 }
