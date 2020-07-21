@@ -81,12 +81,18 @@ int main()
         printf("Driver %s supports CreateCopy() method.\n", pszFormat);
     ;
 
+    CPLErr writeRes;
+    float reduce_coeff = 2.0f;
+    float *reducedScanLine;
+    int dst_xSize = int(src_xSize / reduce_coeff);
+    int dst_ySize = int(src_ySize / reduce_coeff);
+    reducedScanLine = (float *) CPLMalloc(sizeof(float) * dst_xSize);
     //Create TIFF
     const char *pszDstFilename = "/mnt/disk2/routes/teat.tif";
     GDALDataset *dst_poDataset;
     char **papszOptions = NULL;
     dst_poDataset = poDriver
-                        ->Create(pszDstFilename, src_xSize, src_ySize, 1, GDT_UInt16, papszOptions);
+                        ->Create(pszDstFilename, dst_xSize, dst_ySize, 1, GDT_UInt16, papszOptions);
 
     double nf_adfGeoTransform[6] = {444720, 30, 0, 3751320, 0, -30};
     OGRSpatialReference oSRS;
@@ -105,17 +111,27 @@ int main()
     ///
 
     nf_poBand = dst_poDataset->GetRasterBand(1);
-    CPLErr writeRes;
 
-    for (int i = 0; i < src_ySize; i++) {
-        scanLineReadResult = src_poBand->RasterIO(
-            GF_Read, 0, i, src_xSize, 1, pafScanline, src_xSize, 1, GDT_UInt16, 0, 0);
-
-        //        cout << pafScanline;
+    for (int i = 0; i < dst_ySize; i++) {
+        scanLineReadResult = src_poBand->RasterIO(GF_Read,
+                                                  0,
+                                                  int(i * reduce_coeff),
+                                                  src_xSize,
+                                                  1,
+                                                  pafScanline,
+                                                  src_xSize,
+                                                  1,
+                                                  GDT_UInt16,
+                                                  0,
+                                                  0);
+        for (int j = 0; j < dst_xSize; j++) {
+            reducedScanLine[j] = pafScanline[int(j * reduce_coeff)];
+        }
         writeRes = nf_poBand->RasterIO(
-            GF_Write, 0, i, src_xSize, 1, pafScanline, src_xSize, 1, GDT_UInt16, 0, 0);
+            GF_Write, 0, i, dst_xSize, 1, reducedScanLine, dst_xSize, 1, GDT_UInt16, 0, 0);
     }
 
+    CPLFree(reducedScanLine);
     CPLFree(pafScanline);
     cout << writeRes;
     GDALClose((GDALDatasetH) dst_poDataset);
