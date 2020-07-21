@@ -1,7 +1,9 @@
 #include "cpl_conv.h" // for CPLMalloc()
 #include "cpl_string.h"
 #include "gdal_priv.h"
+#include <algorithm>
 #include <iostream>
+#include <typeinfo>
 
 using namespace std;
 
@@ -41,7 +43,7 @@ int main(int argc, char *argv[])
     GDALRasterBand *src_poBand;
     int nBlockXSize, nBlockYSize;
     int bGotMin, bGotMax;
-    double adfMinMax[2];
+    double formatMinMax[2];
     src_poBand = src_poDataset->GetRasterBand(1);
     src_poBand->GetBlockSize(&nBlockXSize, &nBlockYSize);
     printf("Block=%dx%d Type=%s, ColorInterp=%s\n",
@@ -49,11 +51,11 @@ int main(int argc, char *argv[])
            nBlockYSize,
            GDALGetDataTypeName(src_poBand->GetRasterDataType()),
            GDALGetColorInterpretationName(src_poBand->GetColorInterpretation()));
-    adfMinMax[0] = src_poBand->GetMinimum(&bGotMin);
-    adfMinMax[1] = src_poBand->GetMaximum(&bGotMax);
+    formatMinMax[0] = src_poBand->GetMinimum(&bGotMin);
+    formatMinMax[1] = src_poBand->GetMaximum(&bGotMax);
     if (!(bGotMin && bGotMax))
-        GDALComputeRasterMinMax((GDALRasterBandH) src_poBand, TRUE, adfMinMax);
-    printf("Min=%.3fd, Max=%.3f\n", adfMinMax[0], adfMinMax[1]);
+        GDALComputeRasterMinMax((GDALRasterBandH) src_poBand, TRUE, formatMinMax);
+    printf("Min=%.3fd, Max=%.3f\n", formatMinMax[0], formatMinMax[1]);
     if (src_poBand->GetOverviewCount() > 0)
         printf("Band has %d overviews.\n", src_poBand->GetOverviewCount());
     if (src_poBand->GetColorTable() != NULL)
@@ -141,6 +143,24 @@ int main(int argc, char *argv[])
     GDALRasterBand *nf_poBand;
     nf_poBand = dst_poDataset->GetRasterBand(1);
 
+    //    vector<float> _localMinimums, _localMaximums;
+    //    for (int i = 0; i < dst_ySize; i++) {
+    //        scanLineReadResult = src_poBand->RasterIO(GF_Read,
+    //                                                  0,
+    //                                                  int(i * reduce_coeff),
+    //                                                  src_xSize,
+    //                                                  1,
+    //                                                  pafScanline,
+    //                                                  src_xSize,
+    //                                                  1,
+    //                                                  GDT_UInt16,
+    //                                                  0,
+    //                                                  0);
+    //        _localMaximums.push_back(*max_element(pafScanline, pafScanline + src_xSize));
+    //    }
+    //    float _globalMax = *max_element(_localMaximums.begin(), _localMaximums.end());
+    //    cout << " _globalMax " << _globalMax << endl;
+
     for (int i = 0; i < dst_ySize; i++) {
         scanLineReadResult = src_poBand->RasterIO(GF_Read,
                                                   0,
@@ -153,6 +173,7 @@ int main(int argc, char *argv[])
                                                   GDT_UInt16,
                                                   0,
                                                   0);
+
         for (int j = 0; j < dst_xSize; j++) {
             reducedScanLine[j] = pafScanline[int(j * reduce_coeff)];
         }
@@ -161,9 +182,9 @@ int main(int argc, char *argv[])
     }
 
     if (_createPNGfile) {
-        GDALDataset *copyDataSet
+        GDALDataset *cpdDS
             = png_poDriver->CreateCopy(png_DstFilename, dst_poDataset, false, NULL, NULL, NULL);
-        GDALClose((GDALDatasetH) copyDataSet);
+        GDALClose((GDALDatasetH) cpdDS);
     }
     CPLFree(reducedScanLine);
     CPLFree(pafScanline);
