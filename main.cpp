@@ -7,14 +7,18 @@ using namespace std;
 
 int main(int argc, char *argv[])
 {
-    cout << "Start Pixel Remover with factor " << argv[1] << endl;
-    cout << "Parameters number " << argc << endl;
-    const char *pszFilename = "/mnt/disk2/routes/0041_0102_22511_1_02624_06_10_1.tif";
+    if (argc < 4) {
+        cerr << "Usage: " << argv[0] << " <SOURCE FILE PATH> <DESTINATION PATH> <DECREASE FACTOR>"
+             << endl;
+        return 4;
+    }
+    cout << "Start Pixel Remover with factor " << argv[3] << endl;
+    const char *pszFilename = argv[1]; //"/mnt/disk2/routes/0041_0102_22511_1_02624_06_10_1.tif";
     GDALDataset *src_poDataset;
     GDALAllRegister();
     src_poDataset = (GDALDataset *) GDALOpen(pszFilename, GA_ReadOnly);
     if (src_poDataset == NULL) {
-        cout << "src_poDataset is null";
+        cerr << "PxlRmvr------>Error: Source dataset is null";
         exit(3);
     }
     //Чтение информации о TIFF в целом
@@ -59,13 +63,9 @@ int main(int argc, char *argv[])
     float *pafScanline;
     int src_xSize = src_poBand->GetXSize();
     int src_ySize = src_poBand->GetYSize();
-    cout << "X size=" << src_xSize << " Y size=" << src_ySize << endl;
 
     pafScanline = (float *) CPLMalloc(sizeof(float) * src_xSize);
     CPLErr scanLineReadResult;
-    //    scanLineReadResult = src_poBand->RasterIO(
-    //        GF_Read, 0, 0, src_xSize, 1, pafScanline, src_xSize, 1, GDT_Float32, 0, 0);
-    //    cout << scanLineReadResult << endl;
     ////////////////////////////////////
 
     //Creation TIFF check
@@ -83,13 +83,23 @@ int main(int argc, char *argv[])
     ;
 
     CPLErr writeRes;
-    float reduce_coeff = 2.0f;
+    float reduce_coeff = atof(argv[3]);
+    if (reduce_coeff == 0) {
+        cerr << "PxlRmvr------>Error: Reduce factor is 0 or not a number" << endl;
+        CPLFree(pafScanline);
+        return 5;
+    }
+    if (reduce_coeff < 0) {
+        cerr << "PxlRmvr------>Error: Reduce factor is negative" << endl;
+        CPLFree(pafScanline);
+        return 6;
+    }
     float *reducedScanLine;
     int dst_xSize = int(src_xSize / reduce_coeff);
     int dst_ySize = int(src_ySize / reduce_coeff);
     reducedScanLine = (float *) CPLMalloc(sizeof(float) * dst_xSize);
     //Create TIFF
-    const char *pszDstFilename = "/mnt/disk2/routes/teat.tif";
+    const char *pszDstFilename = argv[2]; // "/mnt/disk2/routes/teat.tif";
     GDALDataset *dst_poDataset;
     char **papszOptions = NULL;
     dst_poDataset = poDriver
@@ -100,7 +110,6 @@ int main(int argc, char *argv[])
     char *pszSRS_WKT = NULL;
 
     GDALRasterBand *nf_poBand;
-    //    GByte abyRaster[512 * 512];
 
     //GeoData
     dst_poDataset->SetGeoTransform(nf_adfGeoTransform);
