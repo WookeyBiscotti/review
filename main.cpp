@@ -5,16 +5,17 @@
 
 using namespace std;
 
-int main()
+int main(int argc, char *argv[])
 {
-    cout << "Start Pixel Remover!!!" << endl;
+    cout << "Start Pixel Remover with factor " << argv[1] << endl;
+    cout << "Parameters number " << argc << endl;
     const char *pszFilename = "/mnt/disk2/routes/0041_0102_22511_1_02624_06_10_1.tif";
     GDALDataset *src_poDataset;
     GDALAllRegister();
     src_poDataset = (GDALDataset *) GDALOpen(pszFilename, GA_ReadOnly);
     if (src_poDataset == NULL) {
         cout << "src_poDataset is null";
-        return 0;
+        exit(3);
     }
     //Чтение информации о TIFF в целом
     double adfGeoTransform[6];
@@ -136,5 +137,5 @@ int main()
     cout << writeRes;
     GDALClose((GDALDatasetH) dst_poDataset);
 
-    return 0;
+    exit(0);
 }
