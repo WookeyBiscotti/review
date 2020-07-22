@@ -7,6 +7,8 @@
 
 using namespace std;
 
+uint8_t compress16bTo8b(uint16_t a) {}
+
 int main(int argc, char *argv[])
 {
     if (argc < 4) {
@@ -143,23 +145,23 @@ int main(int argc, char *argv[])
     GDALRasterBand *nf_poBand;
     nf_poBand = dst_poDataset->GetRasterBand(1);
 
-    //    vector<float> _localMinimums, _localMaximums;
-    //    for (int i = 0; i < dst_ySize; i++) {
-    //        scanLineReadResult = src_poBand->RasterIO(GF_Read,
-    //                                                  0,
-    //                                                  int(i * reduce_coeff),
-    //                                                  src_xSize,
-    //                                                  1,
-    //                                                  pafScanline,
-    //                                                  src_xSize,
-    //                                                  1,
-    //                                                  GDT_UInt16,
-    //                                                  0,
-    //                                                  0);
-    //        _localMaximums.push_back(*max_element(pafScanline, pafScanline + src_xSize));
-    //    }
-    //    float _globalMax = *max_element(_localMaximums.begin(), _localMaximums.end());
-    //    cout << " _globalMax " << _globalMax << endl;
+    vector<uint16_t> _localMinimums, _localMaximums;
+    for (int i = 0; i < dst_ySize; i++) {
+        scanLineReadResult = src_poBand->RasterIO(GF_Read,
+                                                  0,
+                                                  int(i * reduce_coeff),
+                                                  src_xSize,
+                                                  1,
+                                                  pafScanline,
+                                                  src_xSize,
+                                                  1,
+                                                  GDT_UInt16,
+                                                  0,
+                                                  0);
+        _localMaximums.push_back(*max_element(pafScanline, pafScanline + src_xSize));
+    }
+    uint16_t _globalMax = *max_element(_localMaximums.begin(), _localMaximums.end());
+    cout << " _globalMax " << _globalMax << endl;
 
     for (int i = 0; i < dst_ySize; i++) {
         scanLineReadResult = src_poBand->RasterIO(GF_Read,
