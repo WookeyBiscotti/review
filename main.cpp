@@ -5,6 +5,7 @@
 #include <iostream>
 #include <typeinfo>
 
+
 using namespace std;
 
 uint8_t compress16bTo8b(uint16_t a) {}
